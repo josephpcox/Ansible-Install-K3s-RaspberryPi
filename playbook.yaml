@@ -1,6 +1,7 @@
 - name: Configure Head Node
   hosts: HeadNodes
   remote_user: pi
+  serial: 1
   tasks:
    - name: Update Operating System
      register: cmd_dev_out
@@ -72,6 +73,7 @@
   hosts: CPUWorkerNodes
   remote_user: pi
   gather_facts: true
+  serial: 1
   tasks:
    - name: Update Operating System
      register: cmd_dev_out
@@ -115,6 +117,7 @@
 - name: Assign Nodes Roles
   hosts: HeadNodes
   remote_user: pi
+  serial: 1
   tasks:
    - name: Label Nodes With Proper Roles
      register: cmd_dev_out
