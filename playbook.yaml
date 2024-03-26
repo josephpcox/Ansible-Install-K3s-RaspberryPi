@@ -1,0 +1,132 @@
+- name: Configure Head Node
+  hosts: HeadNodes
+  remote_user: pi
+  tasks:
+   - name: Update Operating System
+     register: cmd_dev_out
+     become: true
+     become_user: root
+     shell:
+      cmd: apt update && sudo apt upgrade -y
+   - debug: 
+      msg: "{{cmd_dev_out}}"
+
+   - name: Enable Cgroup Memory
+     register: cmd_dev_out
+     become: true
+     become_user: root
+     shell:
+      cmd: echo ' cgroup_memory=1 cgroup_enable=memory' >> /boot/firmware/cmdline.txt
+   - debug: 
+      msg: "{{cmd_dev_out}}"
+        
+   - name: Reboot Machine Too Apply Changes
+     become: true
+     become_user: root
+     ansible.builtin.reboot:
+      msg: "Rebooting machine in 5 seconds"
+   - debug:
+      msg: "{{cmd_dev_out}}"
+
+   - name: Run K3s Head Node Installation
+     register: cmd_dev_out
+     become: true
+     shell:
+      cmd: | 
+       curl -sfL https://get.k3s.io | sh -
+       echo K3S_KUBECONFIG_MODE=\"644\" >> /etc/systemd/system/k3s.service.env
+   - debug:
+      msg: "{{cmd_dev_out}}"
+
+   - name: Allow Time For Server to Start
+     ansible.builtin.pause:
+      seconds: 20
+
+   - name: Get The Head Node Token
+     register: cmd_dev_out
+     become: true
+     become_user: root
+     shell:
+      cmd: cat /var/lib/rancher/k3s/server/node-token
+   - debug:
+      msg: "{{cmd_dev_out.stdout}}"
+   - ansible.builtin.set_fact:
+         k3s_token: "{{cmd_dev_out.stdout}}"
+         cacheable: true
+
+   - name: Make Kube Config World Visible
+     become: true
+     become_user: pi
+     register: cmd_dev_out
+     shell:
+       cmd: |
+        mkdir ~/.kube
+        KUBECONFIG=$(sudo k3s kubectl config view --raw)
+        echo $KUBECONFIG > ~/.kube/config 
+        chmod 600 ~/.kube/config
+        echo 'export KUBECONFIG=~/.kube/config' >> ~/.bashrc
+   - debug:
+      msg: "{{cmd_dev_out}}" 
+
+- name: Configure CPU Worker Nodes
+  hosts: CPUWorkerNodes
+  remote_user: pi
+  gather_facts: true
+  tasks:
+   - name: Update Operating System
+     register: cmd_dev_out
+     become: true
+     become_user: root
+     shell:
+      cmd: sudo apt update && sudo apt upgrade -y
+   - debug: 
+      msg: "{{cmd_dev_out}}"
+   
+   - name: Enable Cgroup Memory
+     register: cmd_dev_out
+     become: true
+     become_user: root
+     shell:
+      cmd: echo ' cgroup_memory=1 cgroup_enable=memory' >> /boot/firmware/cmdline.txt
+   - debug: 
+      msg: "{{cmd_dev_out}}"
+
+   - name: Reboot Machine To Apply Changes
+     become: true
+     become_user: root
+     ansible.builtin.reboot:
+      msg: "Rebooting machine in 5 seconds"
+   - debug:
+      msg: "{{cmd_dev_out}}"
+
+   - name: Run K3s Worker Node Installation
+     register: cmd_dev_out
+     become: true
+     shell:
+      cmd: curl -sfL https://get.k3s.io | K3S_URL=https://{{hostvars[groups.HeadNodes.0].ansible_default_ipv4.address}}:6443 K3S_TOKEN={{ hostvars['pi1']['ansible_facts']['k3s_token']}} sh -
+   - debug:
+      msg: "{{cmd_dev_out}} K3sToken={{hostvars['pi1']['ansible_facts']['k3s_token']}} ip={{hostvars[groups.HeadNodes.0].ansible_default_ipv4.address}}"
+
+   - name: Allow Time For Server to Start
+     ansible.builtin.pause:
+      seconds: 20 
+
+ 
+- name: Assign Nodes Roles
+  hosts: HeadNodes
+  remote_user: pi
+  tasks:
+   - name: Label Nodes With Proper Roles
+     register: cmd_dev_out
+     become: true
+     become_user: root
+     shell:
+      cmd: |
+       sudo kubectl label node pi2 node-role.kubernetes.io/worker=worker
+       sudo kubectl label node pi3 node-role.kubernetes.io/worker=worker
+       sudo kubectl label node pi4 node-role.kubernetes.io/worker=worker
+       sudo kubectl label node pi5 node-role.kubernetes.io/worker=worker
+   - debug: 
+      msg: "{{cmd_dev_out}}"
+
+
