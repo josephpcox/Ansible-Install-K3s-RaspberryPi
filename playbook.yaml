@@ -113,7 +113,6 @@
      ansible.builtin.pause:
       seconds: 20 
 
- 
 - name: Assign Nodes Roles
   hosts: HeadNodes
   remote_user: pi
